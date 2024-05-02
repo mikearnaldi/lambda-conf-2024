@@ -5,26 +5,20 @@ import { Api, ApiResponse } from "effect-http"
 /**
  *  SCHEMA DEFINITIONS
  */
-export const Content = S.Struct({
+export class Content extends S.Class<Content>("Content")({
   content: S.String
-})
-export interface Content extends S.Schema.Type<typeof Content> {}
+}) {}
 
-export const Note = S.extend(
-  S.Struct({
-    id: S.Int
-  }),
-  Content
-)
-export interface Note extends S.Schema.Type<typeof Note> {}
+export class Note extends Content.extend<Note>("Note")({
+  id: S.Int
+}) {
+  static Array = S.Array(this)
+}
 
-const Notes = S.Array(Note)
-interface Notes extends S.Schema.Type<typeof Notes> {}
-
-const NoteError = S.Struct({
+export class NoteApiError extends S.TaggedError<NoteApiError>()("NoteApiError", {
   message: S.String,
   details: S.String
-})
+}) {}
 
 /**
  * API DEFINITIONS
@@ -35,23 +29,23 @@ export const noteApi = pipe(
     pipe(
       Api.post("createNote", "/notes"),
       Api.setRequestBody(Content),
-      Api.setResponseBody(Notes),
+      Api.setResponseBody(Note.Array),
       Api.setResponseStatus(201),
-      Api.addResponse(ApiResponse.make(500, NoteError))
+      Api.addResponse(ApiResponse.make(500, NoteApiError))
     )
   ),
   Api.addEndpoint(
     pipe(
       Api.get("getNotes", "/notes"),
-      Api.setResponseBody(Notes),
-      Api.addResponse(ApiResponse.make(500, NoteError))
+      Api.setResponseBody(Note.Array),
+      Api.addResponse(ApiResponse.make(500, NoteApiError))
     )
   ),
   Api.addEndpoint(
     pipe(
       Api.delete("deleteNotes", "/notes"),
       Api.setResponseBody(S.String),
-      Api.addResponse(ApiResponse.make(500, NoteError))
+      Api.addResponse(ApiResponse.make(500, NoteApiError))
     )
   ),
   Api.addEndpoint(
@@ -59,7 +53,7 @@ export const noteApi = pipe(
       Api.get("getNote", "/notes/:id"),
       Api.setRequestPath(S.Struct({ id: S.NumberFromString })),
       Api.setResponseBody(Note),
-      Api.addResponse(ApiResponse.make(500, NoteError))
+      Api.addResponse(ApiResponse.make(500, NoteApiError))
     )
   ),
   Api.addEndpoint(
@@ -67,7 +61,7 @@ export const noteApi = pipe(
       Api.delete("deleteNote", "/notes/:id"),
       Api.setRequestPath(S.Struct({ id: S.NumberFromString })),
       Api.setResponseBody(S.String),
-      Api.addResponse(ApiResponse.make(500, NoteError))
+      Api.addResponse(ApiResponse.make(500, NoteApiError))
     )
   )
 )

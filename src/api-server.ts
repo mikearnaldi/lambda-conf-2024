@@ -48,6 +48,7 @@ function makeRepository(sql: sqlite.client.SqliteClient) {
     })
   }
 }
+
 /**
  * Abtract Repository so it can be mocked in tests
  */
@@ -139,7 +140,8 @@ const NoteRepositoryService = Layer.effect(
  * Run the application
  */
 app.pipe(
-  Effect.flatMap(NodeServer.listen({ port: 3000 })),
+  Effect.tap(Effect.logInfo(`Visit: http://localhost:1337/docs#/`)),
+  Effect.flatMap(NodeServer.listen({ port: 1337 })),
   Effect.provide(NoteRepositoryService.pipe(Layer.provide(SqliteService))),
   Effect.provide(OpenTelemetryService),
   NodeRuntime.runMain
