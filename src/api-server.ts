@@ -1,12 +1,13 @@
-import { NodeSdk } from "@effect/opentelemetry"
+import "dotenv/config"
+
 import { NodeRuntime } from "@effect/platform-node"
 import { Schema as S } from "@effect/schema"
 import * as sqlite from "@effect/sql-sqlite-node"
-import { BatchSpanProcessor, ConsoleSpanExporter } from "@opentelemetry/sdk-trace-node"
 import { Config, Context, Effect, Layer } from "effect"
 import { Middlewares, RouterBuilder, ServerError } from "effect-http"
 import { NodeServer } from "effect-http-node"
 import { Content, Note, noteApi } from "./api-spec"
+import { TracingLive } from "./tracing"
 
 const appError = (message: string) =>
   Effect.mapError((e: Error) =>
@@ -18,10 +19,9 @@ const appError = (message: string) =>
 
 /**
  * Create a repository for the notes
- * @param sql
- * @returns a repository object
  */
-function makeRepository(sql: sqlite.client.SqliteClient) {
+const makeRepository = Effect.gen(function*() {
+  const sql = yield* sqlite.client.SqliteClient
   return {
     createNoteTable: () => sql`CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, content TEXT UNIQUE)`,
     createNote: sqlite.schema.void({
@@ -47,15 +47,27 @@ function makeRepository(sql: sqlite.client.SqliteClient) {
       execute: (id) => sql`DELETE FROM notes WHERE id = ${id}`
     })
   }
-}
+})
+
+/**
+ * Sqlite service
+ */
+const SqliteService = sqlite.client.layer({
+  filename: Config.succeed("notes.db")
+})
 
 /**
  * Abtract Repository so it can be mocked in tests
  */
 class NoteRepository extends Context.Tag("NoteRepository")<
   NoteRepository,
-  ReturnType<typeof makeRepository>
->() {}
+  Effect.Effect.Success<typeof makeRepository>
+>() {
+  static Live = Layer.effect(
+    NoteRepository,
+    makeRepository
+  ).pipe(Layer.provide(SqliteService))
+}
 
 /**
  * The main application
@@ -114,26 +126,10 @@ const app = Effect.gen(function*() {
 })
 
 /**
- * OpenTelemetry service in console
+ * Final Layer
  */
-const OpenTelemetryService = NodeSdk.layer(() => ({
-  resource: { serviceName: "notes" },
-  spanProcessor: new BatchSpanProcessor(new ConsoleSpanExporter())
-}))
-
-/**
- * Sqlite service
- */
-const SqliteService = sqlite.client.layer({
-  filename: Config.succeed("notes.db")
-})
-
-/**
- * Note Repository service
- */
-const NoteRepositoryService = Layer.effect(
-  NoteRepository,
-  Effect.map(sqlite.client.SqliteClient, (sql) => makeRepository(sql))
+const AppLayer = NoteRepository.Live.pipe(
+  Layer.provide(TracingLive)
 )
 
 /**
@@ -142,7 +138,6 @@ const NoteRepositoryService = Layer.effect(
 app.pipe(
   Effect.tap(Effect.logInfo(`Visit: http://localhost:1337/docs#/`)),
   Effect.flatMap(NodeServer.listen({ port: 1337 })),
-  Effect.provide(NoteRepositoryService.pipe(Layer.provide(SqliteService))),
-  Effect.provide(OpenTelemetryService),
+  Effect.provide(AppLayer),
   NodeRuntime.runMain
 )

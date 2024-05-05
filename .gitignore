@@ -10,3 +10,4 @@ scratchpad/
 .direnv/
 .idea/
 notes.db
+.env

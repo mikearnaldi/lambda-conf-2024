@@ -1,7 +1,10 @@
+import "dotenv/config"
+
 import { NodeRuntime } from "@effect/platform-node"
 import { Effect, Logger, LogLevel } from "effect"
 import { Client } from "effect-http"
 import { noteApi } from "./api-spec"
+import { TracingLive } from "./tracing"
 
 /**
  * Derive the API client
@@ -28,5 +31,6 @@ const program = Effect.gen(function*() {
  */
 program.pipe(
   Logger.withMinimumLogLevel(LogLevel.Debug),
+  Effect.provide(TracingLive),
   NodeRuntime.runMain
 )
