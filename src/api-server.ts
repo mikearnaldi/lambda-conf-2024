@@ -63,10 +63,9 @@ class NoteRepository extends Context.Tag("NoteRepository")<
   NoteRepository,
   Effect.Effect.Success<typeof makeRepository>
 >() {
-  static Live = Layer.effect(
-    NoteRepository,
-    makeRepository
-  ).pipe(Layer.provide(SqliteService))
+  static Live = Layer.effect(this, makeRepository).pipe(
+    Layer.provide(SqliteService)
+  )
 }
 
 /**
